@@ -10,7 +10,7 @@ import { findStartPosition }    from './js/utils/findStartPosition.js';
 //  Production → replace with the direct URL of your hosted GLB
 //               (GitHub Release asset, Cloudflare R2, etc.)
 // ============================================================
-const MODEL_URL = 'https://github.com/minhajfalaki/Brickrat_main_example/releases/tag/V0.1/model.glb';
+const MODEL_URL = 'https://github.com/minhajfalaki/Brickrat_main_example/releases/download/V0.1/model.glb';
 
 // ============================================================
 //  Eye-height constant (metres above floor)
