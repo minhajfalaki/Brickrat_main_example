@@ -1,0 +1,89 @@
+.menu-buttons {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  display: flex;
+  gap: 10px;
+  z-index: 1000;
+}
+
+.menu-button {
+  padding: 10px 20px;
+  background-color: #3498db;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-family: sans-serif;
+  font-size: 16px;
+  transition: background-color 0.3s;
+}
+
+.menu-button:hover {
+  background-color: #2980b9;
+}
+
+.submenu {
+  position: fixed;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  overflow: hidden;
+  z-index: 1001;
+  display: none;
+}
+
+.submenu.active {
+  display: block;
+}
+
+.submenu-item {
+  padding: 15px 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.submenu-item:hover {
+  background-color: #f5f5f5;
+}
+
+.submenu-item img {
+  width: 24px;
+  height: 24px;
+}
+
+.furniture-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  padding: 10px;
+}
+
+.furniture-item {
+  text-align: center;
+  cursor: pointer;
+  padding: 10px;
+  border-radius: 5px;
+  transition: background-color 0.3s;
+}
+
+.furniture-item:hover {
+  background-color: #f5f5f5;
+}
+
+.furniture-item img {
+  width: 80px;
+  height: 80px;
+  object-fit: cover;
+  border-radius: 5px;
+  margin-bottom: 5px;
+}
+
+.furniture-item span {
+  display: block;
+  font-size: 14px;
+  color: #333;
+} 

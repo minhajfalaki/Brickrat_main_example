@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Building Walkthrough</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #B8CEDD; }
+
+    /* ── Shared overlay base ───────────────────────────────────── */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+    }
+
+    /* ── Loading screen ────────────────────────────────────────── */
+    #loadingOverlay {
+      background: #ffffff;
+    }
+
+    .logo-container {
+      position: relative;
+      width: 120px;
+      height: 120px;
+    }
+
+    .progress-ring {
+      position: absolute;
+      inset: 0;
+      transform: rotate(-90deg);
+    }
+
+    .progress-ring__circle {
+      fill: transparent;
+      stroke: #3498db;
+      stroke-width: 8;
+      stroke-dasharray: 314;
+      stroke-dashoffset: 314;
+      transition: stroke-dashoffset 0.3s ease;
+    }
+
+    .logo {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 80px;
+      height: 80px;
+      transform: translate(-50%, -50%);
+    }
+
+    #progressText {
+      margin-top: 14px;
+      font-family: sans-serif;
+      font-size: 20px;
+      color: #3498db;
+    }
+
+    /* ── Click-to-explore prompt ───────────────────────────────── */
+    #clickPrompt {
+      display: none;          /* shown by JS after load */
+      cursor: pointer;
+      background: rgba(0, 0, 0, 0.55);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+    }
+
+    .prompt-box {
+      text-align: center;
+      color: #fff;
+      font-family: sans-serif;
+      padding: 36px 48px;
+      border: 1px solid rgba(255,255,255,0.25);
+      border-radius: 12px;
+      background: rgba(255,255,255,0.08);
+    }
+
+    .prompt-box h2 {
+      font-size: 28px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      letter-spacing: 0.02em;
+    }
+
+    .prompt-box p {
+      font-size: 15px;
+      line-height: 1.7;
+      color: rgba(255,255,255,0.8);
+    }
+
+    .prompt-box kbd {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 4px;
+      background: rgba(255,255,255,0.18);
+      font-family: monospace;
+      font-size: 13px;
+    }
+
+    /* ── Crosshair ─────────────────────────────────────────────── */
+    #crosshair {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      display: none;  /* shown when pointer is locked */
+    }
+
+    #crosshair::before,
+    #crosshair::after {
+      content: '';
+      position: absolute;
+      background: rgba(255, 255, 255, 0.75);
+    }
+
+    #crosshair::before {
+      width: 14px;
+      height: 2px;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+    }
+
+    #crosshair::after {
+      width: 2px;
+      height: 14px;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+    }
+
+    /* ── Esc hint (shown when locked) ──────────────────────────── */
+    #escHint {
+      display: none;
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-family: sans-serif;
+      font-size: 13px;
+      color: rgba(255,255,255,0.55);
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Loading overlay -->
+  <div id="loadingOverlay" class="overlay">
+    <div class="logo-container">
+      <svg class="progress-ring" width="120" height="120">
+        <circle class="progress-ring__circle" r="50" cx="60" cy="60"></circle>
+      </svg>
+      <img class="logo" src="images/logo_round.png" alt="Logo">
+    </div>
+    <div id="progressText">0%</div>
+  </div>
+
+  <!-- Click-to-explore prompt (shown after model loads) -->
+  <div id="clickPrompt" class="overlay">
+    <div class="prompt-box">
+      <h2>Ready to Explore</h2>
+      <p>Click anywhere to start the walkthrough</p>
+      <br>
+      <p>
+        <kbd>W A S D</kbd> or <kbd>↑ ← ↓ →</kbd> &nbsp;Move
+        &nbsp;&nbsp;|&nbsp;&nbsp;
+        Mouse &nbsp;Look
+        &nbsp;&nbsp;|&nbsp;&nbsp;
+        <kbd>Esc</kbd> &nbsp;Release cursor
+      </p>
+    </div>
+  </div>
+
+  <!-- Crosshair (visible only while pointer is locked) -->
+  <div id="crosshair"></div>
+
+  <!-- Esc hint -->
+  <div id="escHint">Press Esc to release cursor</div>
+
+
+  <script type="module" src="main.js"></script>
+
+  <!-- Show / hide crosshair and hint based on pointer lock -->
+  <script>
+    const crosshair = document.getElementById('crosshair');
+    const escHint   = document.getElementById('escHint');
+    document.addEventListener('pointerlockchange', () => {
+      const locked = !!document.pointerLockElement;
+      crosshair.style.display = locked ? 'block' : 'none';
+      escHint.style.display   = locked ? 'block' : 'none';
+    });
+  </script>
+
+</body>
+</html>

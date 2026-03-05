@@ -1,0 +1,4 @@
+node_modules/
+assets/model.glb
+*.glb
+*.gltf
