@@ -63,7 +63,7 @@ scene.add(ambientLight);
 //  Camera
 // ------------------------------------------------------------
 const camera = new THREE.PerspectiveCamera(
-  75,                                    // FOV
+  88,                                    // FOV
   window.innerWidth / window.innerHeight,
   0.05,                                  // near — close enough to avoid clipping indoors
   2000                                   // far
@@ -90,6 +90,8 @@ const fpController = new FirstPersonController(camera, renderer.domElement, { is
 // ------------------------------------------------------------
 const loadingOverlay   = document.getElementById('loadingOverlay');
 const clickPrompt      = document.getElementById('clickPrompt');
+const btnGhost         = document.getElementById('btnGhost');
+const fpsCounter       = document.getElementById('fpsCounter');
 const progressText     = document.getElementById('progressText');
 const progressCircle   = document.querySelector('.progress-ring__circle');
 
@@ -104,6 +106,32 @@ function setProgress(pct) {
   }
 }
 
+// Ghost-mode button — 3-second wall pass-through with debounce
+let ghostTimer = null;
+
+function activateGhostMode() {
+  fpController.wallCollisionEnabled = false;
+  if (btnGhost) btnGhost.classList.add('ghost-active');
+  if (ghostTimer) clearTimeout(ghostTimer);
+  ghostTimer = setTimeout(() => {
+    fpController.wallCollisionEnabled = true;
+    if (btnGhost) btnGhost.classList.remove('ghost-active');
+    ghostTimer = null;
+  }, 3000);
+}
+
+if (btnGhost) {
+  btnGhost.addEventListener('click', activateGhostMode);
+}
+
+// Space Bar triggers ghost mode while pointer is locked (desktop shortcut)
+window.addEventListener('keydown', e => {
+  if (e.code === 'Space' && fpController.isLocked) {
+    e.preventDefault(); // prevent page scroll
+    activateGhostMode();
+  }
+});
+
 const manager = new THREE.LoadingManager(
   // onLoad
   () => {
@@ -112,6 +140,8 @@ const manager = new THREE.LoadingManager(
     setTimeout(() => {
       if (loadingOverlay) loadingOverlay.style.display = 'none';
       if (clickPrompt)    clickPrompt.style.display    = 'flex';
+      if (btnGhost)       btnGhost.style.display       = 'flex';
+      if (fpsCounter)     fpsCounter.style.display     = 'block';
     }, 400);
   },
   // onProgress
@@ -129,6 +159,7 @@ setTimeout(() => {
   if (loadingOverlay && loadingOverlay.style.display !== 'none') {
     loadingOverlay.style.display = 'none';
     if (clickPrompt) clickPrompt.style.display = 'flex';
+    if (btnGhost)    btnGhost.style.display    = 'flex';
   }
 }, 30000);
 
@@ -142,6 +173,7 @@ if (isMobile) {
   // On mobile there is no pointer lock — tapping the prompt activates the controller
   if (clickPrompt) {
     clickPrompt.addEventListener('click', () => {
+      try { screen.orientation.lock('landscape'); } catch {}
       clickPrompt.style.display = 'none';
       fpController.isLocked = true;
     });
@@ -203,11 +235,21 @@ window.addEventListener('resize', () => {
 //  Animation loop
 // ------------------------------------------------------------
 const clock = new THREE.Clock();
+let fpsFrames = 0, fpsElapsed = 0;
 
 function animate() {
   requestAnimationFrame(animate);
 
   const dt = Math.min(clock.getDelta(), 0.1); // cap at 100 ms to avoid teleporting on tab-switch
+
+  // FPS counter — update once per second
+  fpsFrames++;
+  fpsElapsed += dt;
+  if (fpsElapsed >= 1.0) {
+    fpsCounter.textContent = Math.round(fpsFrames / fpsElapsed) + ' FPS';
+    fpsFrames = 0;
+    fpsElapsed = 0;
+  }
 
   fpController.update(dt);
 

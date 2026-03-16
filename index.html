@@ -215,8 +215,118 @@
 
     #btnFullscreen .fs-compress { display: none; }
 
+    /* ── Ghost-mode button ──────────────────────────────────────── */
+    #btnGhost {
+      position: fixed;
+      top: 68px;
+      right: 16px;
+      width: 44px;
+      height: 44px;
+      border: none;
+      border-radius: 8px;
+      background: rgba(0, 0, 0, 0.38);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      color: #fff;
+      cursor: pointer;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 300;
+      padding: 0;
+      touch-action: manipulation;
+    }
+
+    #btnGhost svg {
+      width: 22px;
+      height: 22px;
+      stroke: #fff;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    #btnGhost.ghost-active {
+      background: rgba(255, 165, 0, 0.55);
+    }
+
+    /* ── Zone hints (mobile touch feedback) ────────────────────── */
+    #zone-hint-left,
+    #zone-hint-right {
+      position: fixed;
+      top: 0;
+      bottom: 0;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+      z-index: 150;
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.15);
+      backdrop-filter: blur(3px);
+      -webkit-backdrop-filter: blur(3px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #zone-hint-left  { left: 0;   width: 45%; }
+    #zone-hint-right { right: 0;  width: 55%; }
+
+    .zone-hint-label {
+      font-family: sans-serif;
+      font-size: 13px;
+      color: rgba(255,255,255,0.35);
+      pointer-events: none;
+      user-select: none;
+    }
+
+    /* ── FPS counter ────────────────────────────────────────────── */
+    #fpsCounter {
+      position: fixed;
+      top: 12px;
+      left: 14px;
+      font-family: monospace;
+      font-size: 13px;
+      color: rgba(255, 255, 255, 0.75);
+      pointer-events: none;
+      z-index: 300;
+      display: none;  /* shown after model loads */
+    }
+
     /* ── Prevent browser scroll/zoom on the canvas ─────────────── */
     canvas { touch-action: none; }
+
+    /* ── Rotate-screen prompt ───────────────────────────────────── */
+    #rotatePrompt {
+      display: none;            /* controlled by inline script below */
+      position: fixed;
+      inset: 0;
+      z-index: 10000;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-family: sans-serif;
+      text-align: center;
+      gap: 20px;
+    }
+
+    #rotatePrompt svg {
+      width: 72px;
+      height: 72px;
+      opacity: 0.9;
+    }
+
+    #rotatePrompt p {
+      font-size: 18px;
+      font-weight: 500;
+      letter-spacing: 0.02em;
+      color: rgba(255, 255, 255, 0.9);
+    }
   </style>
 </head>
 <body>
@@ -263,6 +373,10 @@
   <!-- Esc hint -->
   <div id="escHint">Press Esc to release cursor</div>
 
+  <!-- Zone hints (mobile touch feedback — faded in/out by MobileControls.js) -->
+  <div id="zone-hint-left"><span class="zone-hint-label">Move</span></div>
+  <div id="zone-hint-right"><span class="zone-hint-label">Look</span></div>
+
   <!-- Virtual joystick (mobile only — shown/hidden by MobileControls.js) -->
   <div id="joystick-base">
     <div id="joystick-knob"></div>
@@ -286,6 +400,36 @@
     </svg>
   </button>
 
+  <!-- FPS counter -->
+  <div id="fpsCounter">0 FPS</div>
+
+  <!-- Ghost-mode button (shown after model loads) -->
+  <button id="btnGhost" title="Ghost mode — pass through walls for 3 s" aria-label="Ghost mode">
+    <svg viewBox="0 0 24 24">
+      <!-- Door frame -->
+      <rect x="4" y="2" width="13" height="20" rx="1"/>
+      <!-- Door knob -->
+      <circle cx="15" cy="12" r="1.5"/>
+    </svg>
+  </button>
+
+  <!-- Portrait-mode rotate prompt (mobile only) -->
+  <div id="rotatePrompt">
+    <!-- Phone with curved rotation arrow -->
+    <svg viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <!-- Phone outline (portrait) -->
+      <rect x="22" y="10" width="28" height="46" rx="5" ry="5"
+            stroke="white" stroke-width="3" fill="none"/>
+      <circle cx="36" cy="51" r="2.5" fill="white"/>
+      <!-- Curved rotation arrow around phone -->
+      <path d="M16 28 C10 20, 10 8, 22 5"
+            stroke="white" stroke-width="3" stroke-linecap="round" fill="none"/>
+      <polyline points="19,2 22,5 19,8"
+                stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    </svg>
+    <p>Rotate your phone to landscape</p>
+  </div>
+
   <script type="module" src="main.js"></script>
 
   <!-- Show / hide crosshair and hint based on pointer lock -->
@@ -297,6 +441,30 @@
       crosshair.style.display = locked ? 'block' : 'none';
       escHint.style.display   = locked ? 'block' : 'none';
     });
+  </script>
+
+  <!-- Portrait-mode guard: show rotate prompt on mobile when in portrait -->
+  <script>
+    (function () {
+      var el = document.getElementById('rotatePrompt');
+      var mobile = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+      if (!mobile) {
+        el.style.display = 'none';
+        return;
+      }
+      function updateRotatePrompt() {
+        if (window.innerHeight > window.innerWidth) {
+          el.style.display = 'flex';
+        } else {
+          el.style.display = 'none';
+        }
+      }
+      updateRotatePrompt();
+      window.addEventListener('resize', updateRotatePrompt);
+      if (screen.orientation) {
+        screen.orientation.addEventListener('change', updateRotatePrompt);
+      }
+    })();
   </script>
 
 </body>

@@ -38,6 +38,11 @@ export class MobileControls {
     this._base = document.getElementById('joystick-base');
     this._knob = document.getElementById('joystick-knob');
 
+    // Zone hint handles
+    this._hintLeft      = document.getElementById('zone-hint-left');
+    this._hintRight     = document.getElementById('zone-hint-right');
+    this._hintHideTimer = null;
+
     this._bindTouchEvents();
     this._bindFullscreen();
   }
@@ -82,6 +87,12 @@ export class MobileControls {
 
   _onStart(e) {
     e.preventDefault();
+    // Show zone hints
+    clearTimeout(this._hintHideTimer);
+    this._hintHideTimer = null;
+    if (this._hintLeft)  this._hintLeft.style.opacity  = '0.18';
+    if (this._hintRight) this._hintRight.style.opacity = '0.18';
+
     for (const t of e.changedTouches) {
       if (this._isLeftZone(t.clientX) && this._joyId === null) {
         // Claim this touch as the joystick
@@ -143,6 +154,13 @@ export class MobileControls {
       if (t.identifier === this._lookId) {
         this._lookId = null;
       }
+    }
+    // Fade out hints once all touches are released
+    if (this._joyId === null && this._lookId === null) {
+      this._hintHideTimer = setTimeout(() => {
+        if (this._hintLeft)  this._hintLeft.style.opacity  = '0';
+        if (this._hintRight) this._hintRight.style.opacity = '0';
+      }, 900);
     }
   }
 

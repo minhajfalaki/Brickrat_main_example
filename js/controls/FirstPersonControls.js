@@ -1,11 +1,17 @@
 import * as THREE from '../../lib/three/three.module.js';
+import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from '../../lib/three-mesh-bvh/three-mesh-bvh.module.js';
+
+// Patch Three.js prototypes once at module load — enables BVH for all meshes
+THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
+THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
+THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
 // ------------------------------------------------------------------
 //  Constants — tweak here to change feel of the walkthrough
 // ------------------------------------------------------------------
 const EYE_HEIGHT      = 1.65;  // metres above the floor surface
 const MAX_STEP_UP     = 0.25;  // max step height the player can climb
-const MOVE_SPEED      = 4.0;   // metres per second
+const MOVE_SPEED      = 1.35;  // metres per second
 const LOOK_SENSITIVITY = 0.0018; // radians per pixel of mouse movement
 const MIN_PITCH       = -Math.PI * 0.42; // ~75° down
 const MAX_PITCH       =  Math.PI * 0.42; // ~75° up
@@ -13,6 +19,9 @@ const MAX_PITCH       =  Math.PI * 0.42; // ~75° up
 // Small upward offset for the floor probe origin (keeps it just above eye level,
 // well inside the room so it never accidentally hits the ceiling first).
 const FLOOR_PROBE_ABOVE = 0.1;
+// Heights above floor at which wall rays are cast — two samples defeat
+// perforated / lattice meshes where a single ray can slip through a gap.
+const WALL_RAY_HEIGHTS  = [0.6, 1.2];  // shin and chest (metres)
 
 export class FirstPersonController {
   /**
@@ -45,8 +54,10 @@ export class FirstPersonController {
       accepted: null,  // true = step accepted, false = rejected, null = no probe
     };
 
-    // Flat array of meshes used for floor raycasting
+    // Flat array of meshes used for raycasting
     this._meshes = [];
+    // Parallel array of world-space bounding spheres (built in setScene)
+    this._meshSpheres = [];
 
     // Reuse one Raycaster for floor probes (always shoots straight down)
     this._downRay = new THREE.Raycaster();
@@ -54,6 +65,13 @@ export class FirstPersonController {
     // Reach: from just above eye level down to ~4 m below foot level.
     // Covers EYE_HEIGHT (1.65) + FLOOR_PROBE_ABOVE (0.1) + extra descent buffer (2.5).
     this._downRay.far = EYE_HEIGHT + FLOOR_PROBE_ABOVE + 2.5;
+
+    // Wall raycaster — shoots horizontally toward intended movement direction
+    this._wallRay = new THREE.Raycaster();
+    this._wallRay.far = 0.35; // player radius in metres
+
+    // Set false to pass through walls (ghost mode)
+    this.wallCollisionEnabled = true;
 
     // Mobile controls reference (set via setMobileMode)
     this._mobile = null;
@@ -74,9 +92,35 @@ export class FirstPersonController {
    */
   setScene(gltfScene) {
     this._meshes = [];
+    this._meshSpheres = [];
     gltfScene.traverse(obj => {
-      if (obj.isMesh) this._meshes.push(obj);
+      if (obj.isMesh) {
+        this._meshes.push(obj);
+        // Pre-compute world-space bounding sphere for spatial pre-filtering
+        if (!obj.geometry.boundingSphere) obj.geometry.computeBoundingSphere();
+        const sphere = obj.geometry.boundingSphere.clone().applyMatrix4(obj.matrixWorld);
+        this._meshSpheres.push(sphere);
+        // Build BVH on geometry (runs once at load; makes raycasts O(log n))
+        obj.geometry.computeBoundsTree();
+      }
     });
+  }
+
+  /**
+   * Returns the subset of meshes whose world-space bounding sphere overlaps
+   * a horizontal circle of `reach` metres around (px, -, pz).
+   * Cheap arithmetic filter — avoids ray-testing the entire building every frame.
+   */
+  _getLocalMeshes(px, pz, reach) {
+    const result = [];
+    for (let i = 0; i < this._meshes.length; i++) {
+      const s = this._meshSpheres[i];
+      const dx = s.center.x - px;
+      const dz = s.center.z - pz;
+      const r  = reach + s.radius;
+      if (dx * dx + dz * dz < r * r) result.push(this._meshes[i]);
+    }
+    return result;
   }
 
   /**
@@ -178,6 +222,11 @@ export class FirstPersonController {
 
     const currentFootY = this.camera.position.y - EYE_HEIGHT;
 
+    // Spatial pre-filter: only ray-test meshes within 6 m — computed once per frame
+    const localMeshes = this._getLocalMeshes(
+      this.camera.position.x, this.camera.position.z, 6
+    );
+
     if (inputDir.lengthSq() > 0) {
       inputDir.normalize();
 
@@ -186,17 +235,41 @@ export class FirstPersonController {
         new THREE.Vector3(0, 1, 0), this.yaw
       );
       inputDir.applyQuaternion(yawQuat);
+      // Save world-space unit direction for wall collision tests (before speed scaling)
+      const moveDir = inputDir.clone();
       inputDir.multiplyScalar(MOVE_SPEED * dt);
 
       const targetX = this.camera.position.x + inputDir.x;
       const targetZ = this.camera.position.z + inputDir.z;
 
-      // Probe floor at the destination
-      const newFloorY = this._probeFloor(targetX, targetZ);
+      // Axis-separated wall collision (allows sliding along walls)
+      let finalX = targetX;
+      let finalZ = targetZ;
+      if (this.wallCollisionEnabled && localMeshes.length > 0) {
+        const origin = this.camera.position;
+        if (Math.abs(moveDir.x) > 0.001) {
+          for (const h of WALL_RAY_HEIGHTS) {
+            this._wallRay.ray.origin.set(origin.x, this.lastGroundY + h, origin.z);
+            this._wallRay.ray.direction.set(Math.sign(moveDir.x), 0, 0);
+            const hitsX = this._wallRay.intersectObjects(localMeshes, false);
+            if (hitsX.length > 0 && hitsX[0].distance < 0.35) { finalX = origin.x; break; }
+          }
+        }
+        if (Math.abs(moveDir.z) > 0.001) {
+          for (const h of WALL_RAY_HEIGHTS) {
+            this._wallRay.ray.origin.set(origin.x, this.lastGroundY + h, origin.z);
+            this._wallRay.ray.direction.set(0, 0, Math.sign(moveDir.z));
+            const hitsZ = this._wallRay.intersectObjects(localMeshes, false);
+            if (hitsZ.length > 0 && hitsZ[0].distance < 0.35) { finalZ = origin.z; break; }
+          }
+        }
+      }
 
-      // Always move horizontally (wall collision disabled per requirements)
-      this.camera.position.x = targetX;
-      this.camera.position.z = targetZ;
+      // Probe floor at the final destination
+      const newFloorY = this._probeFloor(finalX, finalZ, localMeshes);
+
+      this.camera.position.x = finalX;
+      this.camera.position.z = finalZ;
 
       // Update ground Y only if the step is within allowed range
       if (newFloorY !== null) {
@@ -218,7 +291,8 @@ export class FirstPersonController {
       // or the model moved). Handles gentle descent naturally.
       const floorY = this._probeFloor(
         this.camera.position.x,
-        this.camera.position.z
+        this.camera.position.z,
+        localMeshes
       );
       if (floorY !== null) {
         const stepDiff = floorY - currentFootY;
@@ -239,13 +313,9 @@ export class FirstPersonController {
    * Starting from camera.position.y + 0.1 keeps the origin INSIDE the room
    * (below any ceiling), so the ray hits the actual floor, not the ceiling.
    */
-  _probeFloor(x, z) {
-    this._downRay.ray.origin.set(
-      x,
-      this.camera.position.y + FLOOR_PROBE_ABOVE,
-      z
-    );
-    const hits = this._downRay.intersectObjects(this._meshes, false);
+  _probeFloor(x, z, meshes = this._meshes) {
+    this._downRay.ray.origin.set(x, this.camera.position.y + FLOOR_PROBE_ABOVE, z);
+    const hits = this._downRay.intersectObjects(meshes, false);
     return hits.length > 0 ? hits[0].point.y : null;
   }
 
@@ -265,6 +335,11 @@ export class FirstPersonController {
     const { x: jx, z: jz } = this._mobile.getMoveInput();
     const currentFootY = this.camera.position.y - EYE_HEIGHT;
 
+    // Spatial pre-filter: only ray-test meshes within 6 m — computed once per frame
+    const localMeshes = this._getLocalMeshes(
+      this.camera.position.x, this.camera.position.z, 6
+    );
+
     if (Math.abs(jx) > 0.04 || Math.abs(jz) > 0.04) {
       // Build a horizontal movement vector in world space
       // Joystick: right=+x, down=+z (same convention as WASD)
@@ -275,15 +350,40 @@ export class FirstPersonController {
         new THREE.Vector3(0, 1, 0), this.yaw
       );
       inputDir.applyQuaternion(yawQuat);
+      // Save world-space unit direction for wall collision tests (before speed scaling)
+      const moveDir = inputDir.clone();
       inputDir.multiplyScalar(MOVE_SPEED * dt);
 
       const targetX = this.camera.position.x + inputDir.x;
       const targetZ = this.camera.position.z + inputDir.z;
 
-      const newFloorY = this._probeFloor(targetX, targetZ);
+      // Axis-separated wall collision (allows sliding along walls)
+      let finalX = targetX;
+      let finalZ = targetZ;
+      if (this.wallCollisionEnabled && localMeshes.length > 0) {
+        const origin = this.camera.position;
+        if (Math.abs(moveDir.x) > 0.001) {
+          for (const h of WALL_RAY_HEIGHTS) {
+            this._wallRay.ray.origin.set(origin.x, this.lastGroundY + h, origin.z);
+            this._wallRay.ray.direction.set(Math.sign(moveDir.x), 0, 0);
+            const hitsX = this._wallRay.intersectObjects(localMeshes, false);
+            if (hitsX.length > 0 && hitsX[0].distance < 0.35) { finalX = origin.x; break; }
+          }
+        }
+        if (Math.abs(moveDir.z) > 0.001) {
+          for (const h of WALL_RAY_HEIGHTS) {
+            this._wallRay.ray.origin.set(origin.x, this.lastGroundY + h, origin.z);
+            this._wallRay.ray.direction.set(0, 0, Math.sign(moveDir.z));
+            const hitsZ = this._wallRay.intersectObjects(localMeshes, false);
+            if (hitsZ.length > 0 && hitsZ[0].distance < 0.35) { finalZ = origin.z; break; }
+          }
+        }
+      }
 
-      this.camera.position.x = targetX;
-      this.camera.position.z = targetZ;
+      const newFloorY = this._probeFloor(finalX, finalZ, localMeshes);
+
+      this.camera.position.x = finalX;
+      this.camera.position.z = finalZ;
 
       if (newFloorY !== null) {
         const stepDiff = newFloorY - currentFootY;
@@ -295,7 +395,8 @@ export class FirstPersonController {
       // Standing still — re-probe floor for gentle slopes / descents
       const floorY = this._probeFloor(
         this.camera.position.x,
-        this.camera.position.z
+        this.camera.position.z,
+        localMeshes
       );
       if (floorY !== null) {
         if (floorY - currentFootY <= MAX_STEP_UP) {
