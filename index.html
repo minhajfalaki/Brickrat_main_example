@@ -4,6 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Building Walkthrough</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#B8CEDD">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="images/logo_round.png">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { overflow: hidden; background: #B8CEDD; }
@@ -431,6 +436,13 @@
   </div>
 
   <script type="module" src="main.js"></script>
+
+  <!-- PWA: register service worker -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js').catch(() => {});
+    }
+  </script>
 
   <!-- Show / hide crosshair and hint based on pointer lock -->
   <script>
