@@ -306,7 +306,11 @@
     #rotatePrompt {
       display: none;            /* controlled by inline script below */
       position: fixed;
-      inset: 0;
+      top: 0;
+      left: 0;
+      width: 100dvw;
+      height: 100dvh;
+      overflow: hidden;
       z-index: 10000;
       background: rgba(0, 0, 0, 0.75);
       backdrop-filter: blur(8px);
@@ -432,7 +436,7 @@
       <polyline points="19,2 22,5 19,8"
                 stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
     </svg>
-    <p>Rotate your phone to landscape</p>
+    <p>Rotate phone to continue</p>
   </div>
 
   <script type="module" src="main.js"></script>
@@ -455,26 +459,63 @@
     });
   </script>
 
-  <!-- Portrait-mode guard: show rotate prompt on mobile when in portrait -->
+  <!-- Mobile orientation guard: request landscape when the phone is tilted -->
   <script>
     (function () {
       var el = document.getElementById('rotatePrompt');
       var mobile = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+      var lockPending = false;
+
       if (!mobile) {
         el.style.display = 'none';
         return;
       }
+
+      function requestLandscape() {
+        if (lockPending || !screen.orientation || !screen.orientation.lock) return;
+
+        lockPending = true;
+        Promise.resolve(screen.orientation.lock('landscape'))
+          .catch(function () {
+            // Some browsers only permit orientation locking in an installed PWA
+            // or after a user gesture. The portrait guard remains as the fallback.
+          })
+          .finally(function () {
+            lockPending = false;
+          });
+      }
+
       function updateRotatePrompt() {
-        if (window.innerHeight > window.innerWidth) {
-          el.style.display = 'flex';
-        } else {
-          el.style.display = 'none';
+        var portrait = window.innerHeight > window.innerWidth;
+        el.style.display = portrait ? 'flex' : 'none';
+        if (!portrait) requestLandscape();
+      }
+
+      function scheduleRotatePromptUpdate() {
+        requestAnimationFrame(function () {
+          requestAnimationFrame(updateRotatePrompt);
+        });
+        setTimeout(updateRotatePrompt, 250);
+      }
+
+      function handleTilt(event) {
+        // beta approaches 0 and gamma approaches +/-90 when a portrait-held
+        // phone is physically tilted into landscape, even if OS auto-rotate is off.
+        if (event.beta == null || event.gamma == null) return;
+        if (Math.abs(event.gamma) > 45 && Math.abs(event.beta) < 45) {
+          requestLandscape();
         }
       }
+
       updateRotatePrompt();
-      window.addEventListener('resize', updateRotatePrompt);
+      window.addEventListener('resize', scheduleRotatePromptUpdate);
+      window.addEventListener('orientationchange', scheduleRotatePromptUpdate);
+      window.addEventListener('deviceorientation', handleTilt);
+      if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', scheduleRotatePromptUpdate);
+      }
       if (screen.orientation) {
-        screen.orientation.addEventListener('change', updateRotatePrompt);
+        screen.orientation.addEventListener('change', scheduleRotatePromptUpdate);
       }
     })();
   </script>

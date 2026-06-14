@@ -174,7 +174,6 @@ if (isMobile) {
   // On mobile there is no pointer lock - tapping the prompt activates the controller
   if (clickPrompt) {
     clickPrompt.addEventListener('click', () => {
-      try { screen.orientation.lock('landscape'); } catch {}
       clickPrompt.style.display = 'none';
       fpController.isLocked = true;
     });
@@ -226,11 +225,28 @@ loader.load(
 // ------------------------------------------------------------
 //  Window resize
 // ------------------------------------------------------------
-window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
+function resizeViewport() {
+  // visualViewport reflects the final usable dimensions more reliably after
+  // mobile orientation changes than the first window resize event.
+  const width = Math.round(window.visualViewport?.width || window.innerWidth);
+  const height = Math.round(window.visualViewport?.height || window.innerHeight);
+  if (!width || !height) return;
+
+  camera.aspect = width / height;
   camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-});
+  renderer.setSize(width, height);
+}
+
+function scheduleViewportResize() {
+  requestAnimationFrame(() => requestAnimationFrame(resizeViewport));
+  setTimeout(resizeViewport, 250);
+}
+
+window.addEventListener('resize', scheduleViewportResize);
+window.addEventListener('orientationchange', scheduleViewportResize);
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', scheduleViewportResize);
+}
 
 // ------------------------------------------------------------
 //  Animation loop
