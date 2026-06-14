@@ -1,8 +1,8 @@
 import * as THREE from './lib/three/three.module.js';
-import { GLTFLoader }           from './lib/three/loaders/GLTFLoader.js';
+import { GLTFLoader } from './lib/three/loaders/GLTFLoader.js';
 import { FirstPersonController } from './js/controls/FirstPersonControls.js';
-import { MobileControls }       from './js/controls/MobileControls.js';
-import { findStartPosition }    from './js/utils/findStartPosition.js';
+import { MobileControls } from './js/controls/MobileControls.js';
+import { findStartPosition } from './js/utils/findStartPosition.js';
 
 // ============================================================
 //  Device detection
@@ -11,9 +11,9 @@ const isMobile = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
 
 // ============================================================
 //  MODEL URL
-//  Local dev  → put your GLB inside the "assets/" folder and
+//  Local dev  -> put your GLB inside the "assets/" folder and
 //               keep the path below as-is.
-//  Production → replace with the direct URL of your hosted GLB
+//  Production -> replace with the direct URL of your hosted GLB
 //               (GitHub Release asset, Cloudflare R2, etc.)
 // ============================================================
 // const MODEL_URL = 'https://pub-4622c204bf054ed7ae6895e757c1af7f.r2.dev/model.glb';
@@ -33,19 +33,19 @@ const scene = new THREE.Scene();
 // 4 PM slightly-cloudy sky colour
 scene.background = new THREE.Color(0xB8CEDD);
 
-// Subtle atmospheric haze — helps depth perception indoors
+// Subtle atmospheric haze - helps depth perception indoors
 // (tweak far distance if the model is very large)
 scene.fog = new THREE.FogExp2(0xB8CEDD, 0.002);
 
 // ------------------------------------------------------------
-//  Lighting — late-afternoon / 4 PM overcast sun
+//  Lighting - late-afternoon / 4 PM overcast sun
 // ------------------------------------------------------------
 
 // Hemisphere: cool sky dome above, warm earth below
 // Mimics the diffuse bounce light of an overcast afternoon
 const hemiLight = new THREE.HemisphereLight(
-  0x9BBCD4,  // sky colour  — muted steel-blue
-  0x7D6B50,  // ground colour — warm tan / earth
+  0x9BBCD4,  // sky colour  - muted steel-blue
+  0x7D6B50,  // ground colour - warm tan / earth
   0.9
 );
 scene.add(hemiLight);
@@ -66,7 +66,7 @@ scene.add(ambientLight);
 const camera = new THREE.PerspectiveCamera(
   88,                                    // FOV
   window.innerWidth / window.innerHeight,
-  0.05,                                  // near — close enough to avoid clipping indoors
+  0.05,                                  // near - close enough to avoid clipping indoors
   2000                                   // far
 );
 
@@ -89,25 +89,25 @@ const fpController = new FirstPersonController(camera, renderer.domElement, { is
 // ------------------------------------------------------------
 //  Loading manager + progress ring
 // ------------------------------------------------------------
-const loadingOverlay   = document.getElementById('loadingOverlay');
-const clickPrompt      = document.getElementById('clickPrompt');
-const btnGhost         = document.getElementById('btnGhost');
-const fpsCounter       = document.getElementById('fpsCounter');
-const progressText     = document.getElementById('progressText');
-const progressCircle   = document.querySelector('.progress-ring__circle');
+const loadingOverlay = document.getElementById('loadingOverlay');
+const clickPrompt = document.getElementById('clickPrompt');
+const btnGhost = document.getElementById('btnGhost');
+const fpsCounter = document.getElementById('fpsCounter');
+const progressText = document.getElementById('progressText');
+const progressCircle = document.querySelector('.progress-ring__circle');
 
-const CIRCUMFERENCE = 2 * Math.PI * 50; // r=50 → ~314
+const CIRCUMFERENCE = 2 * Math.PI * 50; // r=50 -> ~314
 
 function setProgress(pct) {
   pct = Math.max(0, Math.min(100, pct));
-  if (progressText)   progressText.textContent = `${Math.round(pct)}%`;
+  if (progressText) progressText.textContent = `${Math.round(pct)}%`;
   if (progressCircle) {
     progressCircle.style.strokeDashoffset =
       CIRCUMFERENCE - (pct / 100) * CIRCUMFERENCE;
   }
 }
 
-// Ghost-mode button — 3-second wall pass-through with debounce
+// Ghost-mode button - 3-second wall pass-through with debounce
 let ghostTimer = null;
 
 function activateGhostMode() {
@@ -140,9 +140,9 @@ const manager = new THREE.LoadingManager(
     // Brief pause so the 100% renders, then swap overlays
     setTimeout(() => {
       if (loadingOverlay) loadingOverlay.style.display = 'none';
-      if (clickPrompt)    clickPrompt.style.display    = 'flex';
-      if (btnGhost)       btnGhost.style.display       = 'flex';
-      if (fpsCounter)     fpsCounter.style.display     = 'block';
+      if (clickPrompt) clickPrompt.style.display = 'flex';
+      if (btnGhost) btnGhost.style.display = 'flex';
+      if (fpsCounter) fpsCounter.style.display = 'block';
     }, 400);
   },
   // onProgress
@@ -160,7 +160,7 @@ setTimeout(() => {
   if (loadingOverlay && loadingOverlay.style.display !== 'none') {
     loadingOverlay.style.display = 'none';
     if (clickPrompt) clickPrompt.style.display = 'flex';
-    if (btnGhost)    btnGhost.style.display    = 'flex';
+    if (btnGhost) btnGhost.style.display = 'flex';
   }
 }, 30000);
 
@@ -171,7 +171,7 @@ if (isMobile) {
   const mobileControls = new MobileControls(renderer.domElement);
   fpController.setMobileMode(mobileControls);
 
-  // On mobile there is no pointer lock — tapping the prompt activates the controller
+  // On mobile there is no pointer lock - tapping the prompt activates the controller
   if (clickPrompt) {
     clickPrompt.addEventListener('click', () => {
       try { screen.orientation.lock('landscape'); } catch {}
@@ -200,7 +200,7 @@ loader.load(
 
     // --- Initial look direction ---
     // Face toward the centre of the model's bounding box (horizontal only)
-    const box    = new THREE.Box3().setFromObject(gltf.scene);
+    const box = new THREE.Box3().setFromObject(gltf.scene);
     const centre = box.getCenter(new THREE.Vector3());
     const toCenter = new THREE.Vector3(
       centre.x - startPos.x,
@@ -236,14 +236,15 @@ window.addEventListener('resize', () => {
 //  Animation loop
 // ------------------------------------------------------------
 const clock = new THREE.Clock();
-let fpsFrames = 0, fpsElapsed = 0;
+let fpsFrames = 0;
+let fpsElapsed = 0;
 
 function animate() {
   requestAnimationFrame(animate);
 
   const dt = Math.min(clock.getDelta(), 0.1); // cap at 100 ms to avoid teleporting on tab-switch
 
-  // FPS counter — update once per second
+  // FPS counter - update once per second
   fpsFrames++;
   fpsElapsed += dt;
   if (fpsElapsed >= 1.0) {
