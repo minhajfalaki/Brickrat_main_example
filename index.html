@@ -11,7 +11,13 @@
   <link rel="apple-touch-icon" href="images/logo_round.png">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { overflow: hidden; background: #B8CEDD; }
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #B8CEDD;
+    }
 
     /* ── Shared overlay base ───────────────────────────────────── */
     .overlay {
@@ -320,12 +326,12 @@
 
     /* ── Rotate-screen prompt ───────────────────────────────────── */
     #rotatePrompt {
-      display: none;            /* controlled by inline script below */
+      display: none;
       position: fixed;
       top: 0;
       left: 0;
-      width: 100dvw;
-      height: 100dvh;
+      width: 100%;
+      height: var(--viewport-height, 100dvh);
       overflow: hidden;
       z-index: 10000;
       background: rgba(0, 0, 0, 0.75);
@@ -338,6 +344,12 @@
       font-family: sans-serif;
       text-align: center;
       gap: 20px;
+    }
+
+    @media (pointer: coarse) and (orientation: portrait) {
+      #rotatePrompt {
+        display: flex;
+      }
     }
 
     #rotatePrompt svg {
@@ -476,63 +488,21 @@
     });
   </script>
 
-  <!-- Mobile orientation guard: request landscape when the phone is tilted -->
+  <!-- Keep viewport-dependent UI and WebGL sizing in sync with device rotation. -->
   <script>
     (function () {
-      var el = document.getElementById('rotatePrompt');
-      var mobile = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
-      var lockPending = false;
-
-      if (!mobile) {
-        el.style.display = 'none';
-        return;
+      function refreshViewport() {
+        document.documentElement.style.setProperty(
+          '--viewport-height',
+          (window.visualViewport ? window.visualViewport.height : window.innerHeight) + 'px'
+        );
       }
 
-      function requestLandscape() {
-        if (lockPending || !screen.orientation || !screen.orientation.lock) return;
-
-        lockPending = true;
-        Promise.resolve(screen.orientation.lock('landscape'))
-          .catch(function () {
-            // Some browsers only permit orientation locking in an installed PWA
-            // or after a user gesture. The portrait guard remains as the fallback.
-          })
-          .finally(function () {
-            lockPending = false;
-          });
-      }
-
-      function updateRotatePrompt() {
-        var portrait = window.innerHeight > window.innerWidth;
-        el.style.display = portrait ? 'flex' : 'none';
-        if (!portrait) requestLandscape();
-      }
-
-      function scheduleRotatePromptUpdate() {
-        requestAnimationFrame(function () {
-          requestAnimationFrame(updateRotatePrompt);
-        });
-        setTimeout(updateRotatePrompt, 250);
-      }
-
-      function handleTilt(event) {
-        // beta approaches 0 and gamma approaches +/-90 when a portrait-held
-        // phone is physically tilted into landscape, even if OS auto-rotate is off.
-        if (event.beta == null || event.gamma == null) return;
-        if (Math.abs(event.gamma) > 45 && Math.abs(event.beta) < 45) {
-          requestLandscape();
-        }
-      }
-
-      updateRotatePrompt();
-      window.addEventListener('resize', scheduleRotatePromptUpdate);
-      window.addEventListener('orientationchange', scheduleRotatePromptUpdate);
-      window.addEventListener('deviceorientation', handleTilt);
+      refreshViewport();
+      window.addEventListener('resize', refreshViewport);
+      window.addEventListener('orientationchange', refreshViewport);
       if (window.visualViewport) {
-        window.visualViewport.addEventListener('resize', scheduleRotatePromptUpdate);
-      }
-      if (screen.orientation) {
-        screen.orientation.addEventListener('change', scheduleRotatePromptUpdate);
+        window.visualViewport.addEventListener('resize', refreshViewport);
       }
     })();
   </script>
